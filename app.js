@@ -1,7 +1,3 @@
-// Supabaseクライアントの初期化
-const { createClient } = supabase;
-const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
 const workerItems = [
     "名前", "ふりがな", "職種", "雇入年月日", "生年月日",
     "経験年数", "現住所", "電話番号", "緊急連絡先住所", "緊急連絡先電話",
@@ -31,7 +27,7 @@ const companyItems = [
     "4ケタのセキュリティコード"
 ];
 
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', () => {
     const tbody = document.getElementById('checklist-body');
     const generateBtn = document.getElementById('generate-btn');
     const resultSection = document.getElementById('result-section');
@@ -49,27 +45,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     let activeTab = 'worker';
     let receivedCheckboxes = [];
     let notReqCheckboxes = [];
-    let safetyDocCache = {};
-
-    const fetchAllData = async () => {
-        try {
-            const { data, error } = await supabaseClient
-                .from('safety_documents')
-                .select('*');
-            
-            if (error) throw error;
-
-            safetyDocCache = {};
-            if (data) {
-                data.forEach(row => {
-                    safetyDocCache[row.company_name] = row.data;
-                });
-            }
-        } catch (error) {
-            console.error('Failed to fetch data from Supabase:', error);
-            alert('データベースからのデータ取得に失敗しました。\nエラー詳細: ' + (error.message || error.details || JSON.stringify(error)));
-        }
-    };
 
     // Setup mutually exclusive checkboxes and row styling
     const updateRowStyle = (row, received, notReq) => {
@@ -162,7 +137,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     tabCompany.addEventListener('click', () => switchTab('company'));
 
     // Initial render
-    await fetchAllData();
     renderTable();
 
     // Bulk actions
@@ -183,13 +157,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // Generate Email
-    generateBtn.addEventListener('click', async () => {
+    generateBtn.addEventListener('click', () => {
         const companyName = companyNameInput.value.trim() || '未分類の会社';
         const workerName = workerNameInput.value.trim();
         
         // 1. 自動保存の実行（名前が入力されている、または会社書類タブの場合のみ）
         if (companyName !== '未分類の会社' && (activeTab === 'company' || workerName)) {
-            await saveCurrentState(false);
+            saveCurrentState(false);
         }
 
         // 2. データの再ロードと収集
@@ -318,8 +292,38 @@ ${missingText}
     const closeSidebarBtn = document.getElementById('close-sidebar');
     const sidebarList = document.getElementById('sidebar-list');
 
+    const STORAGE_KEY = 'safetyDocChecklist';
+    
     const loadSavedData = () => {
-        return safetyDocCache;
+        try {
+            const raw = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+            let migrated = false;
+            
+            // Migrate old structure to new structure
+            Object.keys(raw).forEach(companyName => {
+                const companyData = raw[companyName];
+                
+                // If it is the old structure, it doesn't have companyDocs or workers keys
+                if (companyData && typeof companyData === 'object' && !('companyDocs' in companyData) && !('workers' in companyData)) {
+                    const oldWorkers = { ...companyData };
+                    raw[companyName] = {
+                        companyDocs: { 
+                            received: new Array(companyItems.length).fill(false), 
+                            notReq: new Array(companyItems.length).fill(false) 
+                        },
+                        workers: oldWorkers
+                    };
+                    migrated = true;
+                }
+            });
+            
+            if (migrated) {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(raw));
+            }
+            return raw;
+        } catch {
+            return {};
+        }
     };
 
     const updateCompanyDatalist = () => {
@@ -364,22 +368,13 @@ ${missingText}
             deleteCompanyBtn.className = 'btn-delete-company';
             deleteCompanyBtn.title = 'この会社のすべてのデータを削除';
             deleteCompanyBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
-            deleteCompanyBtn.addEventListener('click', async (e) => {
+            deleteCompanyBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 if (confirm(`「${companyName}」のデータを完全に削除しますか？\n（所属する作業員のデータもすべて削除されます）`)) {
-                    try {
-                        const { error } = await supabaseClient
-                            .from('safety_documents')
-                            .delete()
-                            .eq('company_name', companyName);
-                        if (error) throw error;
-
-                        delete safetyDocCache[companyName];
-                        renderSidebar();
-                    } catch (error) {
-                        console.error('Failed to delete company:', error);
-                        alert('データの削除に失敗しました。\nエラー詳細: ' + (error.message || error.details || JSON.stringify(error)));
-                    }
+                    const saved = loadSavedData();
+                    delete saved[companyName];
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+                    renderSidebar();
                 }
             });
             titleContainer.appendChild(deleteCompanyBtn);
@@ -429,39 +424,23 @@ ${missingText}
 
             // 会社書類の削除（クリア）ハンドラ
             const deleteCompanyDocsBtn = liCompany.querySelector('.btn-delete-item');
-            deleteCompanyDocsBtn.addEventListener('click', async (e) => {
+            deleteCompanyDocsBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 if (confirm(`「${companyName}」の会社書類データを保存リストから削除しますか？`)) {
-                    try {
-                        if (safetyDocCache[companyName]) {
-                            safetyDocCache[companyName].companyDocs = {
-                                received: new Array(companyItems.length).fill(false),
-                                notReq: new Array(companyItems.length).fill(false)
-                            };
-                            
-                            const workersCount = Object.keys(safetyDocCache[companyName].workers || {}).length;
-                            if (workersCount === 0) {
-                                const { error } = await supabaseClient
-                                    .from('safety_documents')
-                                    .delete()
-                                    .eq('company_name', companyName);
-                                if (error) throw error;
-                                delete safetyDocCache[companyName];
-                            } else {
-                                const { error } = await supabaseClient
-                                    .from('safety_documents')
-                                    .upsert({
-                                        company_name: companyName,
-                                        data: safetyDocCache[companyName],
-                                        user_id: '00000000-0000-0000-0000-000000000000'
-                                    }, { onConflict: 'user_id,company_name' });
-                                if (error) throw error;
-                            }
-                            renderSidebar();
+                    const saved = loadSavedData();
+                    if (saved[companyName]) {
+                        saved[companyName].companyDocs = {
+                            received: new Array(companyItems.length).fill(false),
+                            notReq: new Array(companyItems.length).fill(false)
+                        };
+                        
+                        const workersCount = Object.keys(saved[companyName].workers || {}).length;
+                        if (workersCount === 0) {
+                            delete saved[companyName];
                         }
-                    } catch (error) {
-                        console.error('Failed to clear company docs:', error);
-                        alert('会社書類のクリアに失敗しました。\nエラー詳細: ' + (error.message || error.details || JSON.stringify(error)));
+                        
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+                        renderSidebar();
                     }
                 }
             });
@@ -503,44 +482,28 @@ ${missingText}
 
                 // 作業員の個別削除ハンドラ
                 const deleteWorkerBtn = li.querySelector('.btn-delete-item');
-                deleteWorkerBtn.addEventListener('click', async (e) => {
+                deleteWorkerBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     if (confirm(`「${companyName}」の ${workerName} 様のデータを保存リストから完全に削除しますか？`)) {
-                        try {
-                            if (safetyDocCache[companyName] && safetyDocCache[companyName].workers) {
-                                delete safetyDocCache[companyName].workers[workerName];
-                                
-                                const workersCount = Object.keys(safetyDocCache[companyName].workers).length;
-                                const compDocs = safetyDocCache[companyName].companyDocs;
-                                let isCompDocsEmpty = true;
-                                if (compDocs && compDocs.received) {
-                                    compDocs.received.forEach((rec, i) => {
-                                        if (rec || compDocs.notReq[i]) isCompDocsEmpty = false;
-                                    });
-                                }
-                                
-                                if (workersCount === 0 && isCompDocsEmpty) {
-                                    const { error } = await supabaseClient
-                                        .from('safety_documents')
-                                        .delete()
-                                        .eq('company_name', companyName);
-                                    if (error) throw error;
-                                    delete safetyDocCache[companyName];
-                                } else {
-                                    const { error } = await supabaseClient
-                                        .from('safety_documents')
-                                        .upsert({
-                                            company_name: companyName,
-                                            data: safetyDocCache[companyName],
-                                            user_id: '00000000-0000-0000-0000-000000000000'
-                                        }, { onConflict: 'user_id,company_name' });
-                                    if (error) throw error;
-                                }
-                                renderSidebar();
+                        const saved = loadSavedData();
+                        if (saved[companyName] && saved[companyName].workers) {
+                            delete saved[companyName].workers[workerName];
+                            
+                            const workersCount = Object.keys(saved[companyName].workers).length;
+                            const compDocs = saved[companyName].companyDocs;
+                            let isCompDocsEmpty = true;
+                            if (compDocs && compDocs.received) {
+                                compDocs.received.forEach((rec, i) => {
+                                    if (rec || compDocs.notReq[i]) isCompDocsEmpty = false;
+                                });
                             }
-                        } catch (error) {
-                            console.error('Failed to delete worker:', error);
-                            alert('作業員データの削除に失敗しました。\nエラー詳細: ' + (error.message || error.details || JSON.stringify(error)));
+                            
+                            if (workersCount === 0 && isCompDocsEmpty) {
+                                delete saved[companyName];
+                            }
+                            
+                            localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+                            renderSidebar();
                         }
                     }
                 });
@@ -559,7 +522,7 @@ ${missingText}
     openSidebarBtn.addEventListener('click', () => sidebar.classList.add('open'));
     closeSidebarBtn.addEventListener('click', () => sidebar.classList.remove('open'));
 
-    const saveCurrentState = async (showFeedback = true) => {
+    const saveCurrentState = (showFeedback = true) => {
         const companyName = companyNameInput.value.trim() || '未分類の会社';
         
         const received = Array.from(receivedCheckboxes).map(cb => cb.checked);
@@ -572,8 +535,10 @@ ${missingText}
             }
         });
 
-        if (!safetyDocCache[companyName]) {
-            safetyDocCache[companyName] = {
+        let data = loadSavedData();
+        
+        if (!data[companyName]) {
+            data[companyName] = {
                 companyDocs: { 
                     received: new Array(companyItems.length).fill(false), 
                     notReq: new Array(companyItems.length).fill(false) 
@@ -581,8 +546,6 @@ ${missingText}
                 workers: {}
             };
         }
-
-        let isDeleted = false;
 
         if (activeTab === 'worker') {
             const workerName = workerNameInput.value.trim();
@@ -592,11 +555,12 @@ ${missingText}
             }
             
             if (isAllComplete) {
-                if (safetyDocCache[companyName].workers && safetyDocCache[companyName].workers[workerName]) {
-                    delete safetyDocCache[companyName].workers[workerName];
+                if (data[companyName].workers && data[companyName].workers[workerName]) {
+                    delete data[companyName].workers[workerName];
                     
-                    const workersCount = Object.keys(safetyDocCache[companyName].workers).length;
-                    const compDocs = safetyDocCache[companyName].companyDocs;
+                    // Check if company is completely empty of outstanding work
+                    const workersCount = Object.keys(data[companyName].workers).length;
+                    const compDocs = data[companyName].companyDocs;
                     let isCompDocsComplete = true;
                     if (compDocs && compDocs.received) {
                         compDocs.received.forEach((rec, i) => {
@@ -605,76 +569,60 @@ ${missingText}
                     }
                     
                     if (workersCount === 0 && isCompDocsComplete) {
-                        delete safetyDocCache[companyName];
-                        isDeleted = true;
+                        delete data[companyName];
                     }
+                    
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+                    renderSidebar();
                     if (showFeedback) alert('すべての項目が完了しているため、作業員を保存リストから削除しました。');
                 } else {
                     if (showFeedback) alert('すでに全項目が完了しています。（保存不要）');
-                    return true;
                 }
             } else {
                 let totalWorkers = 0;
-                Object.values(safetyDocCache).forEach(cData => {
+                Object.values(data).forEach(cData => {
                     if (cData.workers) {
                         totalWorkers += Object.keys(cData.workers).length;
                     }
                 });
                 
-                const isNewWorker = !safetyDocCache[companyName].workers[workerName];
+                const isNewWorker = !data[companyName].workers[workerName];
                 
                 if (isNewWorker && totalWorkers >= 20) {
                     if (showFeedback) alert('保存上限（20名）に達しています。新しく保存するには、完了した人をリストから消すか、別のブラウザを利用してください。');
                     return false;
                 }
                 
-                safetyDocCache[companyName].workers[workerName] = { received, notReq };
+                data[companyName].workers[workerName] = { received, notReq };
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+                renderSidebar();
+                
+                if (showFeedback) {
+                    toast.textContent = '状態を保存しました！';
+                    toast.classList.add('show');
+                    setTimeout(() => {
+                        toast.classList.remove('show');
+                    }, 3000);
+                }
             }
         } else {
             // activeTab === 'company'
-            safetyDocCache[companyName].companyDocs = { received, notReq };
-        }
-
-        try {
-            if (isDeleted || (Object.keys(safetyDocCache[companyName]?.workers || {}).length === 0 && 
-                safetyDocCache[companyName]?.companyDocs?.received?.every((rec, i) => rec || safetyDocCache[companyName].companyDocs.notReq[i]))) {
-                const { error } = await supabaseClient
-                    .from('safety_documents')
-                    .delete()
-                    .eq('company_name', companyName);
-                if (error) throw error;
-                delete safetyDocCache[companyName];
-            } else {
-                const { error } = await supabaseClient
-                    .from('safety_documents')
-                    .upsert({
-                        company_name: companyName,
-                        data: safetyDocCache[companyName],
-                        user_id: '00000000-0000-0000-0000-000000000000'
-                    }, { onConflict: 'user_id,company_name' });
-                if (error) throw error;
-            }
-
+            data[companyName].companyDocs = { received, notReq };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
             renderSidebar();
             
             if (showFeedback) {
-                toast.textContent = '状態を保存しました！';
+                toast.textContent = isAllComplete ? '会社書類がすべて揃いました！' : '会社書類の状態を保存しました！';
                 toast.classList.add('show');
                 setTimeout(() => {
                     toast.classList.remove('show');
                 }, 3000);
             }
-            return true;
-        } catch (error) {
-            console.error('Failed to save to Supabase:', error);
-            alert('データベースへの保存に失敗しました。\nエラー詳細: ' + (error.message || error.details || JSON.stringify(error)));
-            await fetchAllData();
-            renderSidebar();
-            return false;
         }
+        return true;
     };
 
-    saveBtn.addEventListener('click', async () => {
-        await saveCurrentState(true);
+    saveBtn.addEventListener('click', () => {
+        saveCurrentState(true);
     });
 });
