@@ -1,3 +1,4 @@
 {
-  "outputDirectory": "."
+  "buildCommand": "echo \"const SUPABASE_URL = '$SUPABASE_URL'; const SUPABASE_ANON_KEY = '$SUPABASE_ANON_KEY';\" > config.js && mkdir public && cp index.html app.js style.css config.js public/",
+  "outputDirectory": "public"
 }
