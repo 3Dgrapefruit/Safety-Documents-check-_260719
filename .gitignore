@@ -1,0 +1,11 @@
+# 接続設定ファイル
+config.js
+
+# OSで生成されるファイル
+.DS_Store
+Thumbs.db
+
+# ローカル環境変数（念のため）
+.env
+.env.local
+.env.*.local
