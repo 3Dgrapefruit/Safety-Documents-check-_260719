@@ -35,9 +35,9 @@ const soloOwnerItems = [
     "名前", "ふりがな", "職種", "雇入年月日", "生年月日",
     "経験年数", "現住所", "電話番号", "緊急連絡先住所", "緊急連絡先電話",
     "緊急連絡先氏名", "続柄", "血圧上", "血圧下", "血液型",
-    "健康診断受診日", "資格証写し", "国民年金（写し）", "特別労災保険（写し）", "顔写真",
-    "CCUS　技能者ID", "CCUS　4ケタのセキュリティコード",
-    "CCUS　事業者ID", "CCUS事業者４桁のセキュリティコード"
+    "健康診断受診日", "資格証写し", "国民健康保険（写し）", "国民年金（写し）", "特別労災保険（写し）", "顔写真",
+    "CCUS　事業者ID", "CCUS事業者４桁のセキュリティコード",
+    "CCUS　技能者ID", "CCUS　4ケタのセキュリティコード"
 ];
 
 const companyItems = [
@@ -240,9 +240,43 @@ document.addEventListener('DOMContentLoaded', async () => {
     tabSolo.addEventListener('click', () => switchTab('solo'));
     tabCompany.addEventListener('click', () => switchTab('company'));
 
+    // 会社書類タブの表示制御（一人親方が登録されている場合は非表示）
+    const updateCompanyTabVisibility = () => {
+        const companyName = companyNameInput.value.trim();
+        if (!companyName) {
+            tabCompany.style.display = '';
+            return;
+        }
+        const data = loadSavedData();
+        const companyData = data[companyName];
+        let hasSolo = false;
+        if (companyData && companyData.workers) {
+            hasSolo = Object.values(companyData.workers).some(w => w.type === 'solo');
+        }
+        
+        if (hasSolo) {
+            tabCompany.style.display = 'none';
+            if (activeTab === 'company') {
+                activeTab = 'employee';
+                tabEmployee.classList.add('active');
+                tabCompany.classList.remove('active');
+                workerNameInput.removeAttribute('disabled');
+                workerNameInput.placeholder = "例: 山田 太郎";
+                renderTable();
+            }
+        } else {
+            tabCompany.style.display = '';
+        }
+    };
+
+    companyNameInput.addEventListener('input', () => {
+        updateCompanyTabVisibility();
+    });
+
     // Initial render
     await fetchAllData();
     renderTable();
+    updateCompanyTabVisibility();
 
     // Bulk actions
     checkAllBtn.addEventListener('click', () => {
@@ -465,6 +499,7 @@ ${missingText}
 
                             delete safetyDocCache[companyName];
                             renderSidebar();
+                            updateCompanyTabVisibility();
                         } catch (error) {
                             console.error('Failed to delete company:', error);
                             alert('データの削除に失敗しました。\nエラー詳細: ' + (error.message || error.details || JSON.stringify(error)));
@@ -473,6 +508,7 @@ ${missingText}
                         delete safetyDocCache[companyName];
                         localStorage.setItem(STORAGE_KEY, JSON.stringify(safetyDocCache));
                         renderSidebar();
+                        updateCompanyTabVisibility();
                     }
                 }
             });
@@ -494,82 +530,85 @@ ${missingText}
                 if (!rec && !not) companyMissingCount++;
             });
 
-            // 1. Render Company Docs Item
-            const liCompany = document.createElement('li');
-            liCompany.className = 'sidebar-worker-item sidebar-company-doc-item';
-            liCompany.innerHTML = `
-                <span><i class="fa-solid fa-building"></i> 会社書類</span>
-                <span class="sidebar-item-right">
-                    <span class="badge" style="${companyMissingCount === 0 ? 'background: var(--secondary);' : ''}">残り ${companyMissingCount}</span>
-                    <button class="btn-delete-item" title="会社書類データをクリア"><i class="fa-solid fa-trash-can"></i></button>
-                </span>
-            `;
-            
-            liCompany.addEventListener('click', () => {
-                companyNameInput.value = companyName !== '未分類の会社' ? companyName : '';
-                switchTab('company');
+            // 1. Render Company Docs Item (一人親方の場合は会社書類を表示しない)
+            const isSoloOwnerCompany = Object.values(workers).some(w => w.type === 'solo');
+            if (!isSoloOwnerCompany) {
+                const liCompany = document.createElement('li');
+                liCompany.className = 'sidebar-worker-item sidebar-company-doc-item';
+                liCompany.innerHTML = `
+                    <span><i class="fa-solid fa-building"></i> 会社書類</span>
+                    <span class="sidebar-item-right">
+                        <span class="badge" style="${companyMissingCount === 0 ? 'background: var(--secondary);' : ''}">残り ${companyMissingCount}</span>
+                        <button class="btn-delete-item" title="会社書類データをクリア"><i class="fa-solid fa-trash-can"></i></button>
+                    </span>
+                `;
                 
-                const recData = companyDocs.received || [];
-                const notReqData = companyDocs.notReq || [];
-                
-                receivedCheckboxes.forEach((cb, i) => {
-                    cb.checked = recData[i] || false;
-                    notReqCheckboxes[i].checked = notReqData[i] || false;
-                    updateRowStyle(cb.closest('tr'), cb.checked, notReqCheckboxes[i].checked);
+                liCompany.addEventListener('click', () => {
+                    companyNameInput.value = companyName !== '未分類の会社' ? companyName : '';
+                    switchTab('company');
+                    
+                    const recData = companyDocs.received || [];
+                    const notReqData = companyDocs.notReq || [];
+                    
+                    receivedCheckboxes.forEach((cb, i) => {
+                        cb.checked = recData[i] || false;
+                        notReqCheckboxes[i].checked = notReqData[i] || false;
+                        updateRowStyle(cb.closest('tr'), cb.checked, notReqCheckboxes[i].checked);
+                    });
+                    
+                    sidebar.classList.remove('open');
                 });
-                
-                sidebar.classList.remove('open');
-            });
 
-            // 会社書類の削除（クリア）ハンドラ
-            const deleteCompanyDocsBtn = liCompany.querySelector('.btn-delete-item');
-            deleteCompanyDocsBtn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                if (confirm(`「${companyName}」の会社書類データを保存リストから削除しますか？`)) {
-                    if (safetyDocCache[companyName]) {
-                        safetyDocCache[companyName].companyDocs = {
-                            received: new Array(companyItems.length).fill(false),
-                            notReq: new Array(companyItems.length).fill(false)
-                        };
-                        
-                        const workersCount = Object.keys(safetyDocCache[companyName].workers || {}).length;
-                        
-                        if (useSupabase) {
-                            try {
-                                if (workersCount === 0) {
-                                    const { error } = await supabaseClient
-                                        .from('safety_documents')
-                                        .delete()
-                                        .eq('company_name', companyName);
-                                    if (error) throw error;
-                                    delete safetyDocCache[companyName];
-                                } else {
-                                    const { error } = await supabaseClient
-                                        .from('safety_documents')
-                                        .upsert({
-                                            company_name: companyName,
-                                            data: safetyDocCache[companyName],
-                                            user_id: '00000000-0000-0000-0000-000000000000'
-                                        }, { onConflict: 'user_id,company_name' });
-                                    if (error) throw error;
+                // 会社書類の削除（クリア）ハンドラ
+                const deleteCompanyDocsBtn = liCompany.querySelector('.btn-delete-item');
+                deleteCompanyDocsBtn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    if (confirm(`「${companyName}」の会社書類データを保存リストから削除しますか？`)) {
+                        if (safetyDocCache[companyName]) {
+                            safetyDocCache[companyName].companyDocs = {
+                                received: new Array(companyItems.length).fill(false),
+                                notReq: new Array(companyItems.length).fill(false)
+                            };
+                            
+                            const workersCount = Object.keys(safetyDocCache[companyName].workers || {}).length;
+                            
+                            if (useSupabase) {
+                                try {
+                                    if (workersCount === 0) {
+                                        const { error } = await supabaseClient
+                                            .from('safety_documents')
+                                            .delete()
+                                            .eq('company_name', companyName);
+                                        if (error) throw error;
+                                        delete safetyDocCache[companyName];
+                                    } else {
+                                        const { error } = await supabaseClient
+                                            .from('safety_documents')
+                                            .upsert({
+                                                company_name: companyName,
+                                                data: safetyDocCache[companyName],
+                                                user_id: '00000000-0000-0000-0000-000000000000'
+                                            }, { onConflict: 'user_id,company_name' });
+                                        if (error) throw error;
+                                    }
+                                    renderSidebar();
+                                } catch (error) {
+                                    console.error('Failed to clear company docs:', error);
+                                    alert('会社書類のクリアに失敗しました。\nエラー詳細: ' + (error.message || error.details || JSON.stringify(error)));
                                 }
+                            } else {
+                                if (workersCount === 0) {
+                                    delete safetyDocCache[companyName];
+                                }
+                                localStorage.setItem(STORAGE_KEY, JSON.stringify(safetyDocCache));
                                 renderSidebar();
-                            } catch (error) {
-                                console.error('Failed to clear company docs:', error);
-                                alert('会社書類のクリアに失敗しました。\nエラー詳細: ' + (error.message || error.details || JSON.stringify(error)));
                             }
-                        } else {
-                            if (workersCount === 0) {
-                                delete safetyDocCache[companyName];
-                            }
-                            localStorage.setItem(STORAGE_KEY, JSON.stringify(safetyDocCache));
-                            renderSidebar();
                         }
                     }
-                }
-            });
+                });
 
-            ul.appendChild(liCompany);
+                ul.appendChild(liCompany);
+            }
             
             // 2. Render Workers Items
             Object.keys(workers).forEach(workerName => {
@@ -606,6 +645,7 @@ ${missingText}
                         updateRowStyle(cb.closest('tr'), cb.checked, notReqCheckboxes[i].checked);
                     });
                     
+                    updateCompanyTabVisibility();
                     sidebar.classList.remove('open');
                 });
 
@@ -646,6 +686,7 @@ ${missingText}
                                         if (error) throw error;
                                     }
                                     renderSidebar();
+                                    updateCompanyTabVisibility();
                                 } catch (error) {
                                     console.error('Failed to delete worker:', error);
                                     alert('作業員データの削除に失敗しました。\nエラー詳細: ' + (error.message || error.details || JSON.stringify(error)));
@@ -656,6 +697,7 @@ ${missingText}
                                 }
                                 localStorage.setItem(STORAGE_KEY, JSON.stringify(safetyDocCache));
                                 renderSidebar();
+                                updateCompanyTabVisibility();
                             }
                         }
                     }
@@ -777,6 +819,7 @@ ${missingText}
                 }
 
                 renderSidebar();
+                updateCompanyTabVisibility();
                 
                 if (showFeedback) {
                     toast.textContent = '状態を保存しました！';
@@ -797,6 +840,7 @@ ${missingText}
             // LocalStorage mode save
             localStorage.setItem(STORAGE_KEY, JSON.stringify(safetyDocCache));
             renderSidebar();
+            updateCompanyTabVisibility();
             if (showFeedback) {
                 toast.textContent = '状態を保存しました！';
                 toast.classList.add('show');
