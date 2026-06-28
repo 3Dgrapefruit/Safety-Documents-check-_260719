@@ -23,12 +23,21 @@ if (!useSupabase) {
     console.log('LocalStorage mode active (Supabase not configured).');
 }
 
-const workerItems = [
+const employeeItems = [
     "名前", "ふりがな", "職種", "雇入年月日", "生年月日",
     "経験年数", "現住所", "電話番号", "緊急連絡先住所", "緊急連絡先電話",
     "緊急連絡先氏名", "続柄", "血圧上", "血圧下", "血液型",
-    "健康診断受診日", "資格証写し", "標準報酬決定通知書写し", "雇用保険加入証明写し", "特別労災保険（写し）", "顔写真",
+    "健康診断受診日", "資格証写し", "標準報酬決定通知書写し", "雇用保険加入証明写し", "顔写真",
     "CCUS　技能者ID", "CCUS　4ケタのセキュリティコード", "10年以上の実務経験"
+];
+
+const soloOwnerItems = [
+    "名前", "ふりがな", "職種", "雇入年月日", "生年月日",
+    "経験年数", "現住所", "電話番号", "緊急連絡先住所", "緊急連絡先電話",
+    "緊急連絡先氏名", "続柄", "血圧上", "血圧下", "血液型",
+    "健康診断受診日", "資格証写し", "国民年金（写し）", "特別労災保険（写し）", "顔写真",
+    "CCUS　技能者ID", "CCUS　4ケタのセキュリティコード",
+    "CCUS　事業者ID", "CCUS事業者４桁のセキュリティコード"
 ];
 
 const companyItems = [
@@ -62,12 +71,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const checkAllBtn = document.getElementById('check-all-received');
     const clearAllBtn = document.getElementById('clear-all');
 
-    const tabWorker = document.getElementById('tab-worker');
+    const tabEmployee = document.getElementById('tab-employee');
+    const tabSolo = document.getElementById('tab-solo');
     const tabCompany = document.getElementById('tab-company');
     const workerNameInput = document.getElementById('worker-name');
     const companyNameInput = document.getElementById('company-name');
 
-    let activeTab = 'worker';
+    let activeTab = 'employee';
     let receivedCheckboxes = [];
     let notReqCheckboxes = [];
     
@@ -164,7 +174,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Render checklist items based on active tab
     const renderTable = () => {
         tbody.innerHTML = '';
-        const currentItems = activeTab === 'worker' ? workerItems : companyItems;
+        let currentItems;
+        if (activeTab === 'employee') {
+            currentItems = employeeItems;
+        } else if (activeTab === 'solo') {
+            currentItems = soloOwnerItems;
+        } else {
+            currentItems = companyItems;
+        }
         currentItems.forEach((item, index) => {
             const id = index + 1;
             const tr = document.createElement('tr');
@@ -196,13 +213,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (activeTab === tab) return;
         activeTab = tab;
 
-        if (activeTab === 'worker') {
-            tabWorker.classList.add('active');
-            tabCompany.classList.remove('active');
+        // タブの active クラスの切り替え
+        tabEmployee.classList.remove('active');
+        tabSolo.classList.remove('active');
+        tabCompany.classList.remove('active');
+
+        if (activeTab === 'employee') {
+            tabEmployee.classList.add('active');
+            workerNameInput.removeAttribute('disabled');
+            workerNameInput.placeholder = "例: 山田 太郎";
+        } else if (activeTab === 'solo') {
+            tabSolo.classList.add('active');
             workerNameInput.removeAttribute('disabled');
             workerNameInput.placeholder = "例: 山田 太郎";
         } else {
-            tabWorker.classList.remove('active');
             tabCompany.classList.add('active');
             workerNameInput.setAttribute('disabled', 'true');
             workerNameInput.placeholder = "会社書類のため入力不要";
@@ -212,7 +236,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderTable();
     };
 
-    tabWorker.addEventListener('click', () => switchTab('worker'));
+    tabEmployee.addEventListener('click', () => switchTab('employee'));
+    tabSolo.addEventListener('click', () => switchTab('solo'));
     tabCompany.addEventListener('click', () => switchTab('company'));
 
     // Initial render
@@ -254,8 +279,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         let workersMissingMap = {};
         
         if (companyData) {
-            // 会社書類の不足チェック
-            if (companyData.companyDocs) {
+            // 会社の中に「一人親方」が含まれているかチェック
+            let isSoloOwnerCompany = false;
+            if (companyData.workers) {
+                isSoloOwnerCompany = Object.values(companyData.workers).some(w => w.type === 'solo');
+            }
+
+            // 会社書類の不足チェック (一人親方の会社の場合はスキップ)
+            if (companyData.companyDocs && !isSoloOwnerCompany) {
                 companyItems.forEach((item, i) => {
                     const rec = companyData.companyDocs.received[i];
                     const not = companyData.companyDocs.notReq[i];
@@ -269,8 +300,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (companyData.workers) {
                 Object.keys(companyData.workers).forEach(wName => {
                     const wData = companyData.workers[wName];
+                    const wType = wData.type || 'employee';
+                    const currentWorkerItems = wType === 'solo' ? soloOwnerItems : employeeItems;
+                    
                     let wMissing = [];
-                    workerItems.forEach((item, i) => {
+                    currentWorkerItems.forEach((item, i) => {
                         const rec = wData.received[i];
                         const not = wData.notReq[i];
                         if (!rec && !not) {
@@ -543,9 +577,14 @@ ${missingText}
                 li.className = 'sidebar-worker-item';
                 
                 const workerData = workers[workerName];
+                const workerType = workerData.type || 'employee';
+                const currentWorkerItems = workerType === 'solo' ? soloOwnerItems : employeeItems;
+                
                 let workerMissingCount = 0;
-                workerData.received.forEach((rec, i) => {
-                    if (!rec && !workerData.notReq[i]) workerMissingCount++;
+                currentWorkerItems.forEach((_, i) => {
+                    const rec = workerData.received[i];
+                    const not = workerData.notReq[i];
+                    if (!rec && !not) workerMissingCount++;
                 });
 
                 li.innerHTML = `
@@ -559,7 +598,7 @@ ${missingText}
                 li.addEventListener('click', () => {
                     companyNameInput.value = companyName !== '未分類の会社' ? companyName : '';
                     workerNameInput.value = workerName !== '名前未入力' ? workerName : '';
-                    switchTab('worker');
+                    switchTab(workerType);
                     
                     receivedCheckboxes.forEach((cb, i) => {
                         cb.checked = workerData.received[i] || false;
@@ -661,7 +700,7 @@ ${missingText}
 
         let isDeleted = false;
 
-        if (activeTab === 'worker') {
+        if (activeTab === 'employee' || activeTab === 'solo') {
             const workerName = workerNameInput.value.trim();
             if (!workerName) {
                 if (showFeedback) alert('作業員名を入力してください。');
@@ -705,7 +744,11 @@ ${missingText}
                     return false;
                 }
                 
-                safetyDocCache[companyName].workers[workerName] = { received, notReq };
+                safetyDocCache[companyName].workers[workerName] = { 
+                    type: activeTab,
+                    received, 
+                    notReq 
+                };
             }
         } else {
             // activeTab === 'company'
