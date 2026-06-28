@@ -240,43 +240,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     tabSolo.addEventListener('click', () => switchTab('solo'));
     tabCompany.addEventListener('click', () => switchTab('company'));
 
-    // 会社書類タブの表示制御（一人親方が登録されている場合は非表示）
-    const updateCompanyTabVisibility = () => {
-        const companyName = companyNameInput.value.trim();
-        if (!companyName) {
-            tabCompany.style.display = '';
-            return;
-        }
-        const data = loadSavedData();
-        const companyData = data[companyName];
-        let hasSolo = false;
-        if (companyData && companyData.workers) {
-            hasSolo = Object.values(companyData.workers).some(w => w.type === 'solo');
-        }
-        
-        if (hasSolo) {
-            tabCompany.style.display = 'none';
-            if (activeTab === 'company') {
-                activeTab = 'employee';
-                tabEmployee.classList.add('active');
-                tabCompany.classList.remove('active');
-                workerNameInput.removeAttribute('disabled');
-                workerNameInput.placeholder = "例: 山田 太郎";
-                renderTable();
-            }
-        } else {
-            tabCompany.style.display = '';
-        }
-    };
-
-    companyNameInput.addEventListener('input', () => {
-        updateCompanyTabVisibility();
-    });
-
     // Initial render
     await fetchAllData();
     renderTable();
-    updateCompanyTabVisibility();
 
     // Bulk actions
     checkAllBtn.addEventListener('click', () => {
@@ -313,14 +279,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         let workersMissingMap = {};
         
         if (companyData) {
-            // 会社の中に「一人親方」が含まれているかチェック
-            let isSoloOwnerCompany = false;
+            // 会社の中の作業員構成をチェック（一人親方のみの場合は会社書類不要）
+            let hasEmployee = false;
+            let hasSolo = false;
             if (companyData.workers) {
-                isSoloOwnerCompany = Object.values(companyData.workers).some(w => w.type === 'solo');
+                const workersList = Object.values(companyData.workers);
+                hasEmployee = workersList.some(w => (w.type || 'employee') === 'employee');
+                hasSolo = workersList.some(w => w.type === 'solo');
             }
+            const isSoloOnlyCompany = hasSolo && !hasEmployee;
 
-            // 会社書類の不足チェック (一人親方の会社の場合はスキップ)
-            if (companyData.companyDocs && !isSoloOwnerCompany) {
+            // 会社書類の不足チェック (一人親方のみ所属する会社の場合はスキップ)
+            if (companyData.companyDocs && !isSoloOnlyCompany) {
                 companyItems.forEach((item, i) => {
                     const rec = companyData.companyDocs.received[i];
                     const not = companyData.companyDocs.notReq[i];
@@ -499,7 +469,6 @@ ${missingText}
 
                             delete safetyDocCache[companyName];
                             renderSidebar();
-                            updateCompanyTabVisibility();
                         } catch (error) {
                             console.error('Failed to delete company:', error);
                             alert('データの削除に失敗しました。\nエラー詳細: ' + (error.message || error.details || JSON.stringify(error)));
@@ -508,7 +477,6 @@ ${missingText}
                         delete safetyDocCache[companyName];
                         localStorage.setItem(STORAGE_KEY, JSON.stringify(safetyDocCache));
                         renderSidebar();
-                        updateCompanyTabVisibility();
                     }
                 }
             });
@@ -530,9 +498,13 @@ ${missingText}
                 if (!rec && !not) companyMissingCount++;
             });
 
-            // 1. Render Company Docs Item (一人親方の場合は会社書類を表示しない)
-            const isSoloOwnerCompany = Object.values(workers).some(w => w.type === 'solo');
-            if (!isSoloOwnerCompany) {
+            // 1. Render Company Docs Item (一人親方のみ登録の場合は会社書類を表示しない)
+            const workersList = Object.values(workers);
+            const hasEmployee = workersList.some(w => (w.type || 'employee') === 'employee');
+            const hasSolo = workersList.some(w => w.type === 'solo');
+            const isSoloOnlyCompany = hasSolo && !hasEmployee;
+
+            if (!isSoloOnlyCompany) {
                 const liCompany = document.createElement('li');
                 liCompany.className = 'sidebar-worker-item sidebar-company-doc-item';
                 liCompany.innerHTML = `
@@ -645,7 +617,6 @@ ${missingText}
                         updateRowStyle(cb.closest('tr'), cb.checked, notReqCheckboxes[i].checked);
                     });
                     
-                    updateCompanyTabVisibility();
                     sidebar.classList.remove('open');
                 });
 
@@ -686,7 +657,6 @@ ${missingText}
                                         if (error) throw error;
                                     }
                                     renderSidebar();
-                                    updateCompanyTabVisibility();
                                 } catch (error) {
                                     console.error('Failed to delete worker:', error);
                                     alert('作業員データの削除に失敗しました。\nエラー詳細: ' + (error.message || error.details || JSON.stringify(error)));
@@ -697,7 +667,6 @@ ${missingText}
                                 }
                                 localStorage.setItem(STORAGE_KEY, JSON.stringify(safetyDocCache));
                                 renderSidebar();
-                                updateCompanyTabVisibility();
                             }
                         }
                     }
@@ -819,7 +788,6 @@ ${missingText}
                 }
 
                 renderSidebar();
-                updateCompanyTabVisibility();
                 
                 if (showFeedback) {
                     toast.textContent = '状態を保存しました！';
@@ -840,7 +808,6 @@ ${missingText}
             // LocalStorage mode save
             localStorage.setItem(STORAGE_KEY, JSON.stringify(safetyDocCache));
             renderSidebar();
-            updateCompanyTabVisibility();
             if (showFeedback) {
                 toast.textContent = '状態を保存しました！';
                 toast.classList.add('show');
