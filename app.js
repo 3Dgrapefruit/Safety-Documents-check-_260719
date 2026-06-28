@@ -402,7 +402,6 @@ ${missingText}
     });
 
     // --- Save Feature Logic ---
-    const saveBtn = document.getElementById('save-btn');
     const sidebar = document.getElementById('sidebar');
     const openSidebarBtn = document.getElementById('open-sidebar');
     const closeSidebarBtn = document.getElementById('close-sidebar');
@@ -817,7 +816,4 @@ ${missingText}
         }
     };
 
-    saveBtn.addEventListener('click', async () => {
-        await saveCurrentState(true);
-    });
 });
