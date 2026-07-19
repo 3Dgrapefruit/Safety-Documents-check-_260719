@@ -1,41 +1,17 @@
-// Supabaseクライアントの初期設定と安全な接続確認
-let supabaseClient = null;
-let useSupabase = false;
-
-if (
-    typeof supabase !== 'undefined' && 
-    typeof SUPABASE_URL !== 'undefined' && 
-    typeof SUPABASE_ANON_KEY !== 'undefined' &&
-    SUPABASE_URL && 
-    SUPABASE_ANON_KEY
-) {
-    try {
-        const { createClient } = supabase;
-        supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        useSupabase = true;
-        console.log('Supabase mode active.');
-    } catch (e) {
-        console.error('Failed to initialize Supabase client:', e);
-    }
-}
-
-if (!useSupabase) {
-    console.log('LocalStorage mode active (Supabase not configured).');
-}
-
+// LocalStorage専用動作モード
 const employeeItems = [
     "名前", "ふりがな", "職種", "雇入年月日", "生年月日",
     "経験年数", "現住所", "電話番号", "緊急連絡先住所", "緊急連絡先電話",
-    "緊急連絡先氏名", "続柄", "血圧上", "血圧下", "血液型",
-    "健康診断受診日", "資格証（写し）", "標準報酬決定通知書（写し）", "雇用保険加入証明（写し）", "顔写真",
-    "CCUS　技能者　ID", "CCUS　技能者　４桁のセキュリティコード", "10年以上の実務経験"
+    "緊急連絡先氏名", "続柄", "血液型",
+    "健康診断受診日と血圧", "資格証（写し）", "標準報酬決定通知書（写し）", "雇用保険加入証明（写し）", "顔写真",
+    "CCUS　技能者　ID", "CCUS　技能者　４桁のセキュリティコード"
 ];
 
 const soloOwnerItems = [
     "名前", "ふりがな", "職種", "雇入年月日", "生年月日",
-    "経験年数", "現住所", "電話番号", "緊急連絡先住所", "緊急連絡先電話",
-    "緊急連絡先氏名", "続柄", "血圧上", "血圧下", "血液型",
-    "健康診断受診日", "資格証（写し）", "国民健康保険（写し）", "国民年金（写し）", "特別労災保険（写し）", "顔写真",
+    "経験年数", "郵便番号", "現住所", "電話番号", "緊急連絡先住所", "緊急連絡先電話",
+    "緊急連絡先氏名", "続柄", "血液型",
+    "健康診断受診日と血圧", "資格証（写し）", "工事請負基本契約書（写し）", "国民健康保険（写し）", "国民年金（写し）", "特別労災保険（写し）", "顔写真",
     "CCUS　事業者　ID", "CCUS　事業者　４桁のセキュリティコード",
     "CCUS　技能者　ID", "CCUS　技能者　４桁のセキュリティコード"
 ];
@@ -49,17 +25,17 @@ const companyItems = [
     "FAX番号",
     "代表者役職名",
     "代表者名",
-    "建設業許可証（写し）",
     "工事請負基本契約書（写し）",
+    "建設業許可証（写し）",
+    "１０年以上の実務経歴書",
     "社会保険領収書（写し）",
     "雇用保険領収書（写し）",
     "上乗せ保険（写し）",
-    "メールアドレス",
     "CCUS　事業者　ID",
     "CCUS　事業者　４桁のセキュリティコード"
 ];
 
-document.addEventListener('DOMContentLoaded', async () => {
+const initApp = async () => {
     const tbody = document.getElementById('checklist-body');
     const generateBtn = document.getElementById('generate-btn');
     const resultSection = document.getElementById('result-section');
@@ -82,91 +58,87 @@ document.addEventListener('DOMContentLoaded', async () => {
     const STORAGE_KEY = 'safetyDocChecklist';
     let safetyDocCache = {};
 
-    const fetchAllData = async () => {
-        if (useSupabase) {
-            try {
-                const { data, error } = await supabaseClient
-                    .from('safety_documents')
-                    .select('*');
-                
-                if (error) throw error;
-
-                safetyDocCache = {};
-                if (data) {
-                    data.forEach(row => {
-                        safetyDocCache[row.company_name] = row.data;
-                    });
+    const fetchAllData = () => {
+        try {
+            const raw = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+            let migrated = false;
+            
+            // Migrate old structure to new structure
+            Object.keys(raw).forEach(companyName => {
+                const companyData = raw[companyName];
+                if (companyData && typeof companyData === 'object' && !('companyDocs' in companyData) && !('workers' in companyData)) {
+                    const oldWorkers = { ...companyData };
+                    raw[companyName] = {
+                        companyDocs: { 
+                            received: new Array(companyItems.length).fill(false)
+                        },
+                        workers: oldWorkers
+                    };
+                    migrated = true;
                 }
-            } catch (error) {
-                console.error('Failed to fetch data from Supabase:', error);
-                alert('データベースからのデータ取得に失敗しました。\nエラー詳細: ' + (error.message || error.details || JSON.stringify(error)));
+            });
+            
+            if (migrated) {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(raw));
             }
-        } else {
-            // LocalStorage mode load
-            try {
-                const raw = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
-                let migrated = false;
-                
-                // Migrate old structure to new structure
-                Object.keys(raw).forEach(companyName => {
-                    const companyData = raw[companyName];
-                    if (companyData && typeof companyData === 'object' && !('companyDocs' in companyData) && !('workers' in companyData)) {
-                        const oldWorkers = { ...companyData };
-                        raw[companyName] = {
-                            companyDocs: { 
-                                received: new Array(companyItems.length).fill(false), 
-                                notReq: new Array(companyItems.length).fill(false) 
-                            },
-                            workers: oldWorkers
-                        };
-                        migrated = true;
-                    }
-                });
-                
-                if (migrated) {
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(raw));
-                }
-                safetyDocCache = raw;
-            } catch {
-                safetyDocCache = {};
-            }
+            safetyDocCache = raw;
+        } catch {
+            safetyDocCache = {};
         }
     };
 
     // Setup mutually exclusive checkboxes and row styling
-    const updateRowStyle = (row, received, notReq) => {
-        if (received) {
+    const updateRowStyle = (row, isReceived) => {
+        if (isReceived) {
             row.classList.add('completed');
-            row.classList.remove('not-required');
-        } else if (notReq) {
-            row.classList.add('not-required');
-            row.classList.remove('completed');
         } else {
-            row.classList.remove('completed', 'not-required');
+            row.classList.remove('completed');
         }
+    };
+
+    const toggleExpDocRow = (hide) => {
+        const rows = tbody.querySelectorAll('tr');
+        rows.forEach(tr => {
+            const nameTd = tr.querySelector('.col-name');
+            if (nameTd && nameTd.textContent.trim() === '１０年以上の実務経歴書') {
+                if (hide) {
+                    tr.style.display = 'none';
+                    const rec = tr.querySelector('.cb-received');
+                    if (rec) rec.checked = false;
+                } else {
+                    tr.style.display = '';
+                }
+            }
+        });
     };
 
     const setupCheckboxListeners = () => {
         receivedCheckboxes = document.querySelectorAll('.cb-received');
-        notReqCheckboxes = document.querySelectorAll('.cb-notreq');
+        const licenseNoneCb = document.querySelector('.cb-license-none');
 
-        receivedCheckboxes.forEach((cb, i) => {
+        receivedCheckboxes.forEach((cb) => {
             cb.addEventListener('change', (e) => {
-                if (e.target.checked) {
-                    notReqCheckboxes[i].checked = false;
+                const tr = e.target.closest('tr');
+                updateRowStyle(tr, e.target.checked);
+                if (e.target.dataset.name === '建設業許可証（写し）' && e.target.checked && licenseNoneCb) {
+                    licenseNoneCb.checked = false;
+                    toggleExpDocRow(false);
                 }
-                updateRowStyle(e.target.closest('tr'), e.target.checked, notReqCheckboxes[i].checked);
             });
         });
 
-        notReqCheckboxes.forEach((cb, i) => {
-            cb.addEventListener('change', (e) => {
-                if (e.target.checked) {
-                    receivedCheckboxes[i].checked = false;
+        if (licenseNoneCb) {
+            licenseNoneCb.addEventListener('change', (e) => {
+                const isNone = e.target.checked;
+                const tr = e.target.closest('tr');
+                const recCb = tr.querySelector('.cb-received');
+                if (isNone && recCb) {
+                    recCb.checked = false;
+                    updateRowStyle(tr, false);
                 }
-                updateRowStyle(e.target.closest('tr'), receivedCheckboxes[i].checked, e.target.checked);
+                toggleExpDocRow(isNone);
             });
-        });
+        }
     };
 
     // Render checklist items based on active tab
@@ -185,19 +157,25 @@ document.addEventListener('DOMContentLoaded', async () => {
             const tr = document.createElement('tr');
             tr.className = 'item-row';
             tr.dataset.id = id;
+
+            const isLicenseRow = (activeTab === 'company' && item === '建設業許可証（写し）');
+
             tr.innerHTML = `
                 <td class="text-center">${id}</td>
                 <td class="col-name">${item}</td>
-                <td>
-                    <div class="checkbox-group">
-                        <label class="custom-checkbox" title="受け取り済み">
+                <td class="col-status text-center">
+                    <div class="checkbox-cell-wrapper">
+                        <label class="custom-checkbox" title="チェック">
                             <input type="checkbox" class="cb-received" data-index="${index}" data-name="${item}">
                             <span class="checkmark"></span>
                         </label>
-                        <label class="custom-checkbox not-req" title="不要">
-                            <input type="checkbox" class="cb-notreq" data-index="${index}">
-                            <span class="checkmark"></span>
+                        ${isLicenseRow ? `
+                        <label class="custom-round-checkbox-badge" title="なし">
+                            <span class="round-label-top">なし</span>
+                            <input type="checkbox" class="cb-license-none" data-index="${index}">
+                            <span class="round-checkmark"></span>
                         </label>
+                        ` : ''}
                     </div>
                 </td>
             `;
@@ -208,7 +186,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     const switchTab = (tab) => {
-        if (activeTab === tab) return;
         activeTab = tab;
 
         // タブの active クラスの切り替え
@@ -218,14 +195,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (activeTab === 'employee') {
             tabEmployee.classList.add('active');
+            companyNameInput.placeholder = "例: 株式会社〇〇建設（スペースなし）";
             workerNameInput.removeAttribute('disabled');
-            workerNameInput.placeholder = "例: 山田 太郎";
+            workerNameInput.placeholder = "例: 山田　太郎（姓と名の間に全角スペース）";
         } else if (activeTab === 'solo') {
             tabSolo.classList.add('active');
+            companyNameInput.placeholder = "例: 屋号または氏名";
             workerNameInput.removeAttribute('disabled');
-            workerNameInput.placeholder = "例: 山田 太郎";
+            workerNameInput.placeholder = "例: 山田　太郎（姓と名の間に全角スペース）";
         } else {
             tabCompany.classList.add('active');
+            companyNameInput.placeholder = "例: 株式会社〇〇建設（スペースなし）";
             workerNameInput.setAttribute('disabled', 'true');
             workerNameInput.placeholder = "会社書類のため入力不要";
             workerNameInput.value = '';
@@ -234,12 +214,74 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderTable();
     };
 
+    const clearCheckboxes = () => {
+        receivedCheckboxes.forEach((cb) => {
+            cb.checked = false;
+            const tr = cb.closest('tr');
+            updateRowStyle(tr, false);
+        });
+    };
+
+    const handleWorkerNameChange = () => {
+        const compName = companyNameInput.value.trim() || '未分類の会社';
+        const wName = workerNameInput.value.trim();
+
+        document.querySelectorAll('.sidebar-worker-item').forEach(item => item.classList.remove('active'));
+
+        if (!wName) {
+            clearCheckboxes();
+            return;
+        }
+
+        if (safetyDocCache[compName] && safetyDocCache[compName].workers && safetyDocCache[compName].workers[wName]) {
+            const workerData = safetyDocCache[compName].workers[wName];
+            const recData = workerData.received || [];
+            
+            receivedCheckboxes.forEach((cb, i) => {
+                cb.checked = recData[i] || false;
+                const tr = cb.closest('tr');
+                updateRowStyle(tr, cb.checked);
+            });
+        } else {
+            clearCheckboxes();
+        }
+    };
+
+    const handleCompanyNameChange = () => {
+        const compName = companyNameInput.value.trim();
+        
+        document.querySelectorAll('.sidebar-worker-item').forEach(item => item.classList.remove('active'));
+
+        if (activeTab === 'company') {
+            if (compName && safetyDocCache[compName] && safetyDocCache[compName].companyDocs) {
+                const compDocs = safetyDocCache[compName].companyDocs;
+                const recData = compDocs.received || [];
+                receivedCheckboxes.forEach((cb, i) => {
+                    cb.checked = recData[i] || false;
+                    const tr = cb.closest('tr');
+                    if (notReqCb) notReqCb.checked = notReqData[i] || false;
+                    updateRowStyle(tr, cb.checked, notReqCb ? notReqCb.checked : false);
+                });
+            } else {
+                clearCheckboxes();
+            }
+        } else {
+            workerNameInput.value = '';
+            clearCheckboxes();
+        }
+    };
+
+    workerNameInput.addEventListener('input', handleWorkerNameChange);
+    workerNameInput.addEventListener('change', handleWorkerNameChange);
+    companyNameInput.addEventListener('input', handleCompanyNameChange);
+    companyNameInput.addEventListener('change', handleCompanyNameChange);
+
     tabEmployee.addEventListener('click', () => switchTab('employee'));
     tabSolo.addEventListener('click', () => switchTab('solo'));
     tabCompany.addEventListener('click', () => switchTab('company'));
 
-    // Initial render
-    await fetchAllData();
+    // Initial render (Synchronous)
+    fetchAllData();
     renderTable();
 
     // Bulk actions
@@ -453,28 +495,12 @@ ${missingText}
             deleteCompanyBtn.className = 'btn-delete-company';
             deleteCompanyBtn.title = 'この会社のすべてのデータを削除';
             deleteCompanyBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
-            deleteCompanyBtn.addEventListener('click', async (e) => {
+            deleteCompanyBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 if (confirm(`「${companyName}」のデータを完全に削除しますか？\n（所属する作業員のデータもすべて削除されます）`)) {
-                    if (useSupabase) {
-                        try {
-                            const { error } = await supabaseClient
-                                .from('safety_documents')
-                                .delete()
-                                .eq('company_name', companyName);
-                            if (error) throw error;
-
-                            delete safetyDocCache[companyName];
-                            renderSidebar();
-                        } catch (error) {
-                            console.error('Failed to delete company:', error);
-                            alert('データの削除に失敗しました。\nエラー詳細: ' + (error.message || error.details || JSON.stringify(error)));
-                        }
-                    } else {
-                        delete safetyDocCache[companyName];
-                        localStorage.setItem(STORAGE_KEY, JSON.stringify(safetyDocCache));
-                        renderSidebar();
-                    }
+                    delete safetyDocCache[companyName];
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(safetyDocCache));
+                    renderSidebar();
                 }
             });
             titleContainer.appendChild(deleteCompanyBtn);
@@ -513,6 +539,9 @@ ${missingText}
                 `;
                 
                 liCompany.addEventListener('click', () => {
+                    document.querySelectorAll('.sidebar-worker-item').forEach(item => item.classList.remove('active'));
+                    liCompany.classList.add('active');
+
                     companyNameInput.value = companyName !== '未分類の会社' ? companyName : '';
                     switchTab('company');
                     
@@ -521,16 +550,16 @@ ${missingText}
                     
                     receivedCheckboxes.forEach((cb, i) => {
                         cb.checked = recData[i] || false;
-                        notReqCheckboxes[i].checked = notReqData[i] || false;
-                        updateRowStyle(cb.closest('tr'), cb.checked, notReqCheckboxes[i].checked);
+                        const tr = cb.closest('tr');
+                        const notReqCb = tr ? tr.querySelector('.cb-notreq') : null;
+                        if (notReqCb) notReqCb.checked = notReqData[i] || false;
+                        updateRowStyle(tr, cb.checked, notReqCb ? notReqCb.checked : false);
                     });
-                    
-                    sidebar.classList.remove('open');
                 });
 
                 // 会社書類の削除（クリア）ハンドラ
                 const deleteCompanyDocsBtn = liCompany.querySelector('.btn-delete-item');
-                deleteCompanyDocsBtn.addEventListener('click', async (e) => {
+                deleteCompanyDocsBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     if (confirm(`「${companyName}」の会社書類データを保存リストから削除しますか？`)) {
                         if (safetyDocCache[companyName]) {
@@ -540,38 +569,11 @@ ${missingText}
                             };
                             
                             const workersCount = Object.keys(safetyDocCache[companyName].workers || {}).length;
-                            
-                            if (useSupabase) {
-                                try {
-                                    if (workersCount === 0) {
-                                        const { error } = await supabaseClient
-                                            .from('safety_documents')
-                                            .delete()
-                                            .eq('company_name', companyName);
-                                        if (error) throw error;
-                                        delete safetyDocCache[companyName];
-                                    } else {
-                                        const { error } = await supabaseClient
-                                            .from('safety_documents')
-                                            .upsert({
-                                                company_name: companyName,
-                                                data: safetyDocCache[companyName],
-                                                user_id: '00000000-0000-0000-0000-000000000000'
-                                            }, { onConflict: 'user_id,company_name' });
-                                        if (error) throw error;
-                                    }
-                                    renderSidebar();
-                                } catch (error) {
-                                    console.error('Failed to clear company docs:', error);
-                                    alert('会社書類のクリアに失敗しました。\nエラー詳細: ' + (error.message || error.details || JSON.stringify(error)));
-                                }
-                            } else {
-                                if (workersCount === 0) {
-                                    delete safetyDocCache[companyName];
-                                }
-                                localStorage.setItem(STORAGE_KEY, JSON.stringify(safetyDocCache));
-                                renderSidebar();
+                            if (workersCount === 0) {
+                                delete safetyDocCache[companyName];
                             }
+                            localStorage.setItem(STORAGE_KEY, JSON.stringify(safetyDocCache));
+                            renderSidebar();
                         }
                     }
                 });
@@ -604,22 +606,25 @@ ${missingText}
                 `;
                 
                 li.addEventListener('click', () => {
+                    document.querySelectorAll('.sidebar-worker-item').forEach(item => item.classList.remove('active'));
+                    li.classList.add('active');
+
                     companyNameInput.value = companyName !== '未分類の会社' ? companyName : '';
                     workerNameInput.value = workerName !== '名前未入力' ? workerName : '';
                     switchTab(workerType);
                     
                     receivedCheckboxes.forEach((cb, i) => {
                         cb.checked = workerData.received[i] || false;
-                        notReqCheckboxes[i].checked = workerData.notReq[i] || false;
-                        updateRowStyle(cb.closest('tr'), cb.checked, notReqCheckboxes[i].checked);
+                        const tr = cb.closest('tr');
+                        const notReqCb = tr ? tr.querySelector('.cb-notreq') : null;
+                        if (notReqCb) notReqCb.checked = workerData.notReq[i] || false;
+                        updateRowStyle(tr, cb.checked, notReqCb ? notReqCb.checked : false);
                     });
-                    
-                    sidebar.classList.remove('open');
                 });
 
                 // 作業員の個別削除ハンドラ
                 const deleteWorkerBtn = li.querySelector('.btn-delete-item');
-                deleteWorkerBtn.addEventListener('click', async (e) => {
+                deleteWorkerBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     if (confirm(`「${companyName}」の ${workerName} 様のデータを保存リストから完全に削除しますか？`)) {
                         if (safetyDocCache[companyName] && safetyDocCache[companyName].workers) {
@@ -634,37 +639,11 @@ ${missingText}
                                 });
                             }
                             
-                            if (useSupabase) {
-                                try {
-                                    if (workersCount === 0 && isCompDocsEmpty) {
-                                        const { error } = await supabaseClient
-                                            .from('safety_documents')
-                                            .delete()
-                                            .eq('company_name', companyName);
-                                        if (error) throw error;
-                                        delete safetyDocCache[companyName];
-                                    } else {
-                                        const { error } = await supabaseClient
-                                            .from('safety_documents')
-                                            .upsert({
-                                                company_name: companyName,
-                                                data: safetyDocCache[companyName],
-                                                user_id: '00000000-0000-0000-0000-000000000000'
-                                            }, { onConflict: 'user_id,company_name' });
-                                        if (error) throw error;
-                                    }
-                                    renderSidebar();
-                                } catch (error) {
-                                    console.error('Failed to delete worker:', error);
-                                    alert('作業員データの削除に失敗しました。\nエラー詳細: ' + (error.message || error.details || JSON.stringify(error)));
-                                }
-                            } else {
-                                if (workersCount === 0 && isCompDocsEmpty) {
-                                    delete safetyDocCache[companyName];
-                                }
-                                localStorage.setItem(STORAGE_KEY, JSON.stringify(safetyDocCache));
-                                renderSidebar();
+                            if (workersCount === 0 && isCompDocsEmpty) {
+                                delete safetyDocCache[companyName];
                             }
+                            localStorage.setItem(STORAGE_KEY, JSON.stringify(safetyDocCache));
+                            renderSidebar();
                         }
                     }
                 });
@@ -682,6 +661,11 @@ ${missingText}
 
     openSidebarBtn.addEventListener('click', () => sidebar.classList.add('open'));
     closeSidebarBtn.addEventListener('click', () => sidebar.classList.remove('open'));
+    
+    const closeSidebarBottomBtn = document.getElementById('close-sidebar-bottom');
+    if (closeSidebarBottomBtn) {
+        closeSidebarBottomBtn.addEventListener('click', () => sidebar.classList.remove('open'));
+    }
 
     const saveCurrentState = async (showFeedback = true) => {
         const companyName = companyNameInput.value.trim() || '未分類の会社';
@@ -747,8 +731,8 @@ ${missingText}
                 
                 const isNewWorker = !safetyDocCache[companyName].workers[workerName];
                 
-                if (isNewWorker && totalWorkers >= 20) {
-                    if (showFeedback) alert('保存上限（20名）に達しています。新しく保存するには、完了した人をリストから消すか、別のブラウザを利用してください。');
+                if (isNewWorker && totalWorkers >= 30) {
+                    if (showFeedback) alert('保存上限（30名）に達しています。新しく保存するには、完了した人をリストから消すか、別のブラウザを利用してください。');
                     return false;
                 }
                 
@@ -763,57 +747,26 @@ ${missingText}
             safetyDocCache[companyName].companyDocs = { received, notReq };
         }
 
-        if (useSupabase) {
-            try {
-                if (isDeleted || (Object.keys(safetyDocCache[companyName]?.workers || {}).length === 0 && 
-                    safetyDocCache[companyName]?.companyDocs?.received?.every((rec, i) => rec || safetyDocCache[companyName].companyDocs.notReq[i]))) {
-                    const { error } = await supabaseClient
-                        .from('safety_documents')
-                        .delete()
-                        .eq('company_name', companyName);
-                    if (error) throw error;
-                    delete safetyDocCache[companyName];
-                } else {
-                    const { error } = await supabaseClient
-                        .from('safety_documents')
-                        .upsert({
-                            company_name: companyName,
-                            data: safetyDocCache[companyName],
-                            user_id: '00000000-0000-0000-0000-000000000000'
-                        }, { onConflict: 'user_id,company_name' });
-                    if (error) throw error;
-                }
-
-                renderSidebar();
-                
-                if (showFeedback) {
-                    toast.textContent = '状態を保存しました！';
-                    toast.classList.add('show');
-                    setTimeout(() => {
-                        toast.classList.remove('show');
-                    }, 3000);
-                }
-                return true;
-            } catch (error) {
-                console.error('Failed to save to Supabase:', error);
-                alert('データベースへの保存に失敗しました。\nエラー詳細: ' + (error.message || error.details || JSON.stringify(error)));
-                await fetchAllData();
-                renderSidebar();
-                return false;
-            }
-        } else {
-            // LocalStorage mode save
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(safetyDocCache));
-            renderSidebar();
-            if (showFeedback) {
-                toast.textContent = '状態を保存しました！';
-                toast.classList.add('show');
-                setTimeout(() => {
-                    toast.classList.remove('show');
-                }, 3000);
-            }
-            return true;
+        // LocalStorage mode save
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(safetyDocCache));
+        renderSidebar();
+        if (showFeedback) {
+            toast.textContent = '状態を保存しました！';
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
         }
+        return true;
     };
 
-});
+    // Initial load and render
+    fetchAllData();
+    renderSidebar();
+};
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+} else {
+    initApp();
+}
