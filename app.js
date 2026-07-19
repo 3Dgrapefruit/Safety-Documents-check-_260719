@@ -193,19 +193,24 @@ const initApp = async () => {
         tabSolo.classList.remove('active');
         tabCompany.classList.remove('active');
 
+        const companyHelper = document.getElementById('company-name-helper');
+
         if (activeTab === 'employee') {
             tabEmployee.classList.add('active');
             companyNameInput.placeholder = "例: 株式会社〇〇建設（スペースなし）";
+            if (companyHelper) companyHelper.style.display = '';
             workerNameInput.removeAttribute('disabled');
             workerNameInput.placeholder = "例: 山田　太郎（姓と名の間に全角スペース）";
         } else if (activeTab === 'solo') {
             tabSolo.classList.add('active');
             companyNameInput.placeholder = "例: 屋号または氏名";
+            if (companyHelper) companyHelper.style.display = 'none';
             workerNameInput.removeAttribute('disabled');
             workerNameInput.placeholder = "例: 山田　太郎（姓と名の間に全角スペース）";
         } else {
             tabCompany.classList.add('active');
             companyNameInput.placeholder = "例: 株式会社〇〇建設（スペースなし）";
+            if (companyHelper) companyHelper.style.display = '';
             workerNameInput.setAttribute('disabled', 'true');
             workerNameInput.placeholder = "会社書類のため入力不要";
             workerNameInput.value = '';
