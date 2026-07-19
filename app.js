@@ -51,7 +51,7 @@ const initApp = async () => {
     const workerNameInput = document.getElementById('worker-name');
     const companyNameInput = document.getElementById('company-name');
 
-    let activeTab = 'employee';
+    let activeTab = 'company';
     let receivedCheckboxes = [];
     let notReqCheckboxes = [];
     
@@ -293,7 +293,7 @@ const initApp = async () => {
 
     // Initial render (Synchronous)
     fetchAllData();
-    renderTable();
+    switchTab('company');
 
     // Bulk actions
     checkAllBtn.addEventListener('click', () => {
