@@ -259,8 +259,7 @@ const initApp = async () => {
                 receivedCheckboxes.forEach((cb, i) => {
                     cb.checked = recData[i] || false;
                     const tr = cb.closest('tr');
-                    if (notReqCb) notReqCb.checked = notReqData[i] || false;
-                    updateRowStyle(tr, cb.checked, notReqCb ? notReqCb.checked : false);
+                    updateRowStyle(tr, cb.checked);
                 });
             } else {
                 clearCheckboxes();
@@ -286,19 +285,28 @@ const initApp = async () => {
 
     // Bulk actions
     checkAllBtn.addEventListener('click', () => {
-        receivedCheckboxes.forEach((cb, i) => {
-            cb.checked = true;
-            notReqCheckboxes[i].checked = false;
-            updateRowStyle(cb.closest('tr'), true, false);
+        receivedCheckboxes.forEach((cb) => {
+            const tr = cb.closest('tr');
+            if (tr && tr.style.display !== 'none') {
+                cb.checked = true;
+                updateRowStyle(tr, true);
+            }
         });
+        const licenseNoneCb = document.querySelector('.cb-license-none');
+        if (licenseNoneCb) licenseNoneCb.checked = false;
     });
 
     clearAllBtn.addEventListener('click', () => {
-        receivedCheckboxes.forEach((cb, i) => {
+        receivedCheckboxes.forEach((cb) => {
             cb.checked = false;
-            notReqCheckboxes[i].checked = false;
-            updateRowStyle(cb.closest('tr'), false, false);
+            const tr = cb.closest('tr');
+            updateRowStyle(tr, false);
         });
+        const licenseNoneCb = document.querySelector('.cb-license-none');
+        if (licenseNoneCb) {
+            licenseNoneCb.checked = false;
+            toggleExpDocRow(false);
+        }
     });
 
     // Generate Email
