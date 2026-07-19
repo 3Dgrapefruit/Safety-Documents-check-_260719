@@ -203,10 +203,13 @@ const initApp = async () => {
             workerNameInput.placeholder = "例: 山田　太郎（姓と名の間に全角スペース）";
         } else if (activeTab === 'solo') {
             tabSolo.classList.add('active');
+            companyNameInput.value = '';
+            workerNameInput.value = '';
             companyNameInput.placeholder = "例: 屋号または氏名";
             if (companyHelper) companyHelper.style.display = 'none';
             workerNameInput.removeAttribute('disabled');
             workerNameInput.placeholder = "例: 山田　太郎（姓と名の間に全角スペース）";
+            document.querySelectorAll('.sidebar-worker-item').forEach(item => item.classList.remove('active'));
         } else {
             tabCompany.classList.add('active');
             companyNameInput.placeholder = "例: 株式会社〇〇建設（スペースなし）";
@@ -217,6 +220,10 @@ const initApp = async () => {
         }
 
         renderTable();
+
+        if (activeTab === 'solo') {
+            clearCheckboxes();
+        }
     };
 
     const clearCheckboxes = () => {
