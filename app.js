@@ -221,7 +221,9 @@ const initApp = async () => {
 
         renderTable();
 
-        if (activeTab === 'solo') {
+        if (activeTab === 'employee' && !workerNameInput.value.trim()) {
+            clearCheckboxes();
+        } else if (activeTab === 'solo') {
             clearCheckboxes();
         }
     };
@@ -245,6 +247,8 @@ const initApp = async () => {
             return;
         }
 
+        // 入力欄に名前が打ち直された場合、既存の保存データがあってもサイドバーから選択された場合を除き
+        // 基本的にはブランク（クリア）状態に戻して新規チェックを行えるようにする
         if (safetyDocCache[compName] && safetyDocCache[compName].workers && safetyDocCache[compName].workers[wName]) {
             const workerData = safetyDocCache[compName].workers[wName];
             const recData = workerData.received || [];
