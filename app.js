@@ -112,6 +112,11 @@ const initApp = async () => {
         });
     };
 
+    const clearEmailResult = () => {
+        if (emailOutput) emailOutput.value = '';
+        if (resultSection) resultSection.style.display = 'none';
+    };
+
     const setupCheckboxListeners = () => {
         receivedCheckboxes = document.querySelectorAll('.cb-received');
         const licenseNoneCb = document.querySelector('.cb-license-none');
@@ -124,6 +129,7 @@ const initApp = async () => {
                     licenseNoneCb.checked = false;
                     toggleExpDocRow(false);
                 }
+                clearEmailResult();
             });
         });
 
@@ -137,6 +143,7 @@ const initApp = async () => {
                     updateRowStyle(tr, false);
                 }
                 toggleExpDocRow(isNone);
+                clearEmailResult();
             });
         }
     };
@@ -310,6 +317,7 @@ const initApp = async () => {
         });
         const licenseNoneCb = document.querySelector('.cb-license-none');
         if (licenseNoneCb) licenseNoneCb.checked = false;
+        clearEmailResult();
     });
 
     clearAllBtn.addEventListener('click', () => {
@@ -323,6 +331,7 @@ const initApp = async () => {
             licenseNoneCb.checked = false;
             toggleExpDocRow(false);
         }
+        clearEmailResult();
     });
 
     // Generate Email
