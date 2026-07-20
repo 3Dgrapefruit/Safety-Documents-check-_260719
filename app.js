@@ -784,7 +784,7 @@ ${missingText}
         return true;
     };
 
-    // 全登録データの未提出項目を一括PDF化
+    // 全登録データの未提出項目を一括PDF化（白黒・縦一列・途切れ防止対応）
     const generatePdfReport = () => {
         const data = loadSavedData();
         const companyNames = Object.keys(data);
@@ -797,13 +797,13 @@ ${missingText}
         const today = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
         
         let reportHtml = `
-            <div id="pdf-report-content" style="font-family: 'Noto Sans JP', sans-serif; padding: 25px; color: #1e293b; line-height: 1.6; background: #ffffff;">
-                <div style="border-bottom: 2px solid #ef4444; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end;">
+            <div id="pdf-report-content" style="font-family: 'Noto Sans JP', sans-serif; padding: 20px; color: #000000; line-height: 1.5; background: #ffffff; width: 700px; box-sizing: border-box;">
+                <div style="border-bottom: 2px solid #000000; padding-bottom: 8px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-end;">
                     <div>
-                        <h1 style="font-size: 22px; font-weight: 700; color: #0f172a; margin: 0;">安全書類 未提出項目 一覧レポート</h1>
-                        <p style="font-size: 13px; color: #64748b; margin: 4px 0 0 0;">保存リスト全データの未提出書類チェックシート</p>
+                        <h1 style="font-size: 20px; font-weight: bold; color: #000000; margin: 0;">安全書類 未提出項目 一覧レポート</h1>
+                        <p style="font-size: 11px; color: #333333; margin: 4px 0 0 0;">保存リスト全データの未提出書類チェックシート</p>
                     </div>
-                    <div style="font-size: 12px; color: #64748b; text-align: right;">
+                    <div style="font-size: 11px; color: #333333; text-align: right;">
                         発行日: ${today}
                     </div>
                 </div>
@@ -824,7 +824,6 @@ ${missingText}
 
             // 1. 会社書類の未提出チェック
             if (!isSoloOnlyCompany && compDocs.received) {
-                // 建設業許可証「なし」のチェック（10番目の建設業許可証がfalseかつ丸い「なし」が選択されている状態など）
                 const licenseNone = compDocs.notReq && compDocs.notReq[9];
                 
                 companyItems.forEach((item, i) => {
@@ -858,49 +857,49 @@ ${missingText}
             const hasWorkerMissing = Object.keys(workerMissingMap).length > 0;
 
             reportHtml += `
-                <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; margin-bottom: 18px; page-break-inside: avoid;">
-                    <div style="font-size: 16px; font-weight: bold; color: #1e3a8a; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
-                        <span>🏢 会社名: ${compName}</span>
+                <div style="background: #ffffff; border: 1px solid #000000; border-radius: 4px; padding: 14px; margin-bottom: 16px; page-break-inside: avoid; break-inside: avoid;">
+                    <div style="font-size: 15px; font-weight: bold; color: #000000; border-bottom: 1px dashed #000000; padding-bottom: 6px; margin-bottom: 10px;">
+                        ■ 会社名: ${compName}
                     </div>
             `;
 
             if (!hasCompMissing && !hasWorkerMissing) {
                 reportHtml += `
-                    <div style="font-size: 13px; color: #16a34a; font-weight: bold; padding: 4px 8px;">
-                        ✨ 全ての書類が提出（受領）済みです
+                    <div style="font-size: 12px; color: #000000; font-weight: bold; padding: 4px 0;">
+                        （全ての書類が提出・受領済みです）
                     </div>
                 `;
             } else {
-                // 会社書類の未提出リスト
+                // 会社書類の未提出リスト（縦一列表示）
                 if (hasCompMissing) {
                     reportHtml += `
-                        <div style="margin-bottom: 12px; padding-left: 6px;">
-                            <div style="font-size: 14px; font-weight: bold; color: #dc2626; margin-bottom: 6px;">
-                                【会社書類】 未提出 (残り ${compMissingItems.length} 件):
+                        <div style="margin-bottom: 10px;">
+                            <div style="font-size: 13px; font-weight: bold; color: #000000; margin-bottom: 4px;">
+                                【会社書類】 未提出 (${compMissingItems.length}件):
                             </div>
-                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 12px; padding-left: 12px;">
+                            <div style="padding-left: 10px;">
                     `;
                     compMissingItems.forEach(item => {
-                        reportHtml += `<div style="font-size: 13px; color: #334155;">▢ ${item}</div>`;
+                        reportHtml += `<div style="font-size: 12px; color: #000000; padding: 2px 0;">▢ ${item}</div>`;
                     });
                     reportHtml += `</div></div>`;
                 }
 
-                // 作業員/一人親方の未提出リスト
+                // 作業員/一人親方の未提出リスト（縦一列表示）
                 if (hasWorkerMissing) {
                     Object.keys(workerMissingMap).forEach(wName => {
                         const info = workerMissingMap[wName];
                         const labelType = info.type === 'solo' ? '一人親方' : '作業員';
 
                         reportHtml += `
-                            <div style="margin-bottom: 12px; padding-left: 6px;">
-                                <div style="font-size: 14px; font-weight: bold; color: #d97706; margin-bottom: 6px;">
-                                    【${labelType}】 ${wName} 様 (未提出 残り ${info.items.length} 件):
+                            <div style="margin-bottom: 10px;">
+                                <div style="font-size: 13px; font-weight: bold; color: #000000; margin-bottom: 4px;">
+                                    【${labelType}】 ${wName} 様 (未提出 ${info.items.length}件):
                                 </div>
-                                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 12px; padding-left: 12px;">
+                                <div style="padding-left: 10px;">
                         `;
                         info.items.forEach(item => {
-                            reportHtml += `<div style="font-size: 13px; color: #334155;">▢ ${item}</div>`;
+                            reportHtml += `<div style="font-size: 12px; color: #000000; padding: 2px 0;">▢ ${item}</div>`;
                         });
                         reportHtml += `</div></div>`;
                     });
@@ -911,13 +910,16 @@ ${missingText}
         });
 
         reportHtml += `
-                <div style="margin-top: 25px; font-size: 11px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 10px;">
-                    安全書類管理システム - 自動PDFレポート
+                <div style="margin-top: 20px; font-size: 10px; color: #666666; text-align: center; border-top: 1px solid #cccccc; padding-top: 8px;">
+                    安全書類管理システム - 未提出チェックレポート
                 </div>
             </div>
         `;
 
         const element = document.createElement('div');
+        element.style.position = 'absolute';
+        element.style.left = '-9999px';
+        element.style.top = '0';
         element.innerHTML = reportHtml;
         document.body.appendChild(element);
 
@@ -925,12 +927,16 @@ ${missingText}
             margin:       [10, 10, 10, 10],
             filename:     `安全書類未提出一覧_${new Date().toISOString().slice(0,10)}.pdf`,
             image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2, useCORS: true },
-            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            html2canvas:  { scale: 2, useCORS: true, scrollY: 0 },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            pagebreak:    { mode: ['css', 'legacy'] }
         };
 
         if (typeof html2pdf !== 'undefined') {
             html2pdf().set(opt).from(element).save().then(() => {
+                document.body.removeChild(element);
+            }).catch(err => {
+                console.error('PDF generation error:', err);
                 document.body.removeChild(element);
             });
         } else {
