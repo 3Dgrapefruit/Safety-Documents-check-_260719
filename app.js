@@ -579,15 +579,13 @@ ${missingText}
                     switchTab('company');
                     
                     const recData = companyDocs.received || [];
-                    const notReqData = companyDocs.notReq || [];
                     
                     receivedCheckboxes.forEach((cb, i) => {
                         cb.checked = recData[i] || false;
                         const tr = cb.closest('tr');
-                        const notReqCb = tr ? tr.querySelector('.cb-notreq') : null;
-                        if (notReqCb) notReqCb.checked = notReqData[i] || false;
-                        updateRowStyle(tr, cb.checked, notReqCb ? notReqCb.checked : false);
+                        updateRowStyle(tr, cb.checked);
                     });
+                    clearEmailResult();
                 });
 
                 // 会社書類の削除（クリア）ハンドラ
@@ -649,10 +647,9 @@ ${missingText}
                     receivedCheckboxes.forEach((cb, i) => {
                         cb.checked = workerData.received[i] || false;
                         const tr = cb.closest('tr');
-                        const notReqCb = tr ? tr.querySelector('.cb-notreq') : null;
-                        if (notReqCb) notReqCb.checked = workerData.notReq[i] || false;
-                        updateRowStyle(tr, cb.checked, notReqCb ? notReqCb.checked : false);
+                        updateRowStyle(tr, cb.checked);
                     });
+                    clearEmailResult();
                 });
 
                 // 作業員の個別削除ハンドラ
