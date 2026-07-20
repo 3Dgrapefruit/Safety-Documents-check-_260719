@@ -762,22 +762,32 @@ textarea:focus {
     background: #f8fafc;
 }
 
-.btn-sidebar-close {
+.btn-sidebar-pdf {
     width: 100%;
     padding: 0.75rem 1rem;
-    background: white;
-    color: var(--text-main);
-    border: 1px solid #cbd5e1;
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+    border: none;
     border-radius: 8px;
-    font-size: 0.95rem;
-    font-weight: 600;
+    font-size: 1rem;
+    font-weight: 700;
     cursor: pointer;
     transition: all 0.2s ease;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    gap: 0.6rem;
+    box-shadow: 0 4px 6px rgba(220, 38, 38, 0.2);
+}
+
+.btn-sidebar-pdf:hover {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 12px rgba(220, 38, 38, 0.3);
+}
+
+.btn-sidebar-pdf:active {
+    transform: translateY(0);
 }
 
 /* Custom Round Checkbox for License None */

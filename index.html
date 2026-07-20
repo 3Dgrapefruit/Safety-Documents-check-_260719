@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
     <div class="background-animation"></div>
@@ -22,8 +23,8 @@
             <p class="sidebar-empty">保存されているデータはありません。</p>
         </div>
         <div class="sidebar-footer">
-            <button id="close-sidebar-bottom" class="btn-sidebar-close">
-                <i class="fa-solid fa-xmark"></i> 保存リストを閉じる
+            <button id="btn-export-pdf" class="btn-sidebar-pdf" title="全データの未提出項目をPDF出力">
+                <i class="fa-solid fa-file-pdf"></i> PDF化
             </button>
         </div>
     </div>
