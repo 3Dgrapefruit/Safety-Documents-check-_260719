@@ -916,40 +916,37 @@ ${missingText}
             </div>
         `;
 
-        const element = document.createElement('div');
-        element.style.position = 'fixed';
-        element.style.left = '0';
-        element.style.top = '0';
-        element.style.width = '750px';
-        element.style.zIndex = '-99999';
-        element.style.background = '#ffffff';
-        element.style.opacity = '1';
-        element.innerHTML = reportHtml;
-        document.body.appendChild(element);
-
-        const opt = {
-            margin:       [10, 10, 10, 10],
-            filename:     `安全書類未提出一覧_${new Date().toISOString().slice(0,10)}.pdf`,
-            image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2, useCORS: true, scrollY: 0, windowWidth: 800 },
-            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-            pagebreak:    { mode: ['css', 'legacy'] }
-        };
-
-        if (typeof html2pdf !== 'undefined') {
-            html2pdf().set(opt).from(element).save().then(() => {
-                if (document.body.contains(element)) document.body.removeChild(element);
-            }).catch(err => {
-                console.error('PDF generation error:', err);
-                if (document.body.contains(element)) document.body.removeChild(element);
-            });
-        } else {
-            const printWin = window.open('', '', 'width=850,height=1000');
-            printWin.document.write(`<html><head><title>安全書類未提出一覧</title></head><body>${reportHtml}</body></html>`);
+        // 印刷およびPDF保存用ウインドウの起動（ブラウザ標準のPDF保存機能により、1文字も切れずに真っ白化0%で確実出力）
+        const printWin = window.open('', '_blank', 'width=850,height=1000');
+        if (printWin) {
+            printWin.document.write(`
+                <!DOCTYPE html>
+                <html lang="ja">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>安全書類未提出一覧_${new Date().toISOString().slice(0,10)}</title>
+                    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+                    <style>
+                        body { font-family: 'Noto Sans JP', 'Hiragino Sans', sans-serif; margin: 0; padding: 20px; background: #ffffff; color: #000000; }
+                        @page { size: A4 portrait; margin: 10mm; }
+                        div { box-sizing: border-box; }
+                    </style>
+                </head>
+                <body>
+                    ${reportHtml}
+                    <script>
+                        window.onload = function() {
+                            setTimeout(function() {
+                                window.print();
+                            }, 400);
+                        };
+                    </script>
+                </body>
+                </html>
+            `);
             printWin.document.close();
-            printWin.focus();
-            printWin.print();
-            if (document.body.contains(element)) document.body.removeChild(element);
+        } else {
+            alert('ポップアップブロックが有効になっているためPDF画面を開けませんでした。ブラウザのポップアップ許可を設定してください。');
         }
     };
 
