@@ -917,9 +917,13 @@ ${missingText}
         `;
 
         const element = document.createElement('div');
-        element.style.position = 'absolute';
-        element.style.left = '-9999px';
+        element.style.position = 'fixed';
+        element.style.left = '0';
         element.style.top = '0';
+        element.style.width = '750px';
+        element.style.zIndex = '-99999';
+        element.style.background = '#ffffff';
+        element.style.opacity = '1';
         element.innerHTML = reportHtml;
         document.body.appendChild(element);
 
@@ -927,17 +931,17 @@ ${missingText}
             margin:       [10, 10, 10, 10],
             filename:     `安全書類未提出一覧_${new Date().toISOString().slice(0,10)}.pdf`,
             image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2, useCORS: true, scrollY: 0 },
+            html2canvas:  { scale: 2, useCORS: true, scrollY: 0, windowWidth: 800 },
             jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
             pagebreak:    { mode: ['css', 'legacy'] }
         };
 
         if (typeof html2pdf !== 'undefined') {
             html2pdf().set(opt).from(element).save().then(() => {
-                document.body.removeChild(element);
+                if (document.body.contains(element)) document.body.removeChild(element);
             }).catch(err => {
                 console.error('PDF generation error:', err);
-                document.body.removeChild(element);
+                if (document.body.contains(element)) document.body.removeChild(element);
             });
         } else {
             const printWin = window.open('', '', 'width=850,height=1000');
@@ -945,7 +949,7 @@ ${missingText}
             printWin.document.close();
             printWin.focus();
             printWin.print();
-            document.body.removeChild(element);
+            if (document.body.contains(element)) document.body.removeChild(element);
         }
     };
 
